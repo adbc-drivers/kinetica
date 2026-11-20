@@ -1,0 +1,5 @@
+Kinetica ADBC Driver
+Copyright 2026 Kinetica DB, Inc.
+
+This product includes software developed at Kinetica DB, Inc.
+(https://www.kinetica.com/).

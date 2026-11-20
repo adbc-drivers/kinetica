@@ -1,0 +1,73 @@
+# Copyright (c) 2026 ADBC Drivers Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# A Kinetica for the tests to run against, in the shape the ADBC Driver
+# Foundry's CI starts one: from this directory,
+#
+#     docker compose up --detach --wait test-service
+#
+# and the tests then take
+#
+#     KI_URL=http://127.0.0.1:9191  KI_USER=admin  KI_PWD=<the password below>
+#
+# Three ranks in one container: the head on 9191 and two workers on 9192 and
+# 9193, all advertised on 127.0.0.1 so that multi-head ingest reaches the
+# workers from the host rather than falling back to the head. Only localhost
+# is bound; nothing is reachable from outside the machine.
+#
+# The admin password is set before the database first starts, which is the
+# only time it can be (ci/kinetica/start.sh). It is KI_PWD, as the tests read
+# it, so one variable serves both; the default is for a throwaway instance.
+#
+# First start takes a minute or two after the image is pulled, so `--wait`
+# is what a caller should rely on, not the port: 9191 answers before the
+# database is ready.
+#
+# The image's `latest` is not used, since what the tests saw passing should
+# be what they run against again.
+
+services:
+  test-service:
+    image: kinetica/kinetica-cpu:7.2.3.24.20261101191740.ga
+    command: ["/bin/bash", "/opt/gpudb/user/start.sh"]
+    environment:
+      # Without this only the host manager starts.
+      GPUDB_START_ALL: "1"
+      # Merged over the image's own configuration on first start.
+      GPUDB_CONF: /opt/gpudb/user/gpudb.conf
+      KINETICA_ADMIN_PASSWORD: ${KI_PWD:-kinetica-ci}
+    volumes:
+      # A directory rather than the file: the start script copies the file
+      # out, and a file mounted on its own breaks when replaced on the host.
+      - ./ci/kinetica:/opt/gpudb/user:ro
+    ports:
+      - "127.0.0.1:9191-9193:9191-9193"
+      - "127.0.0.1:9300:9300"
+    healthcheck:
+      # Ready when the SQL engine answers a query as admin, which is what the
+      # tests are about to ask of it. The port answers before the ranks are
+      # up, so a port check or a status call is not enough; the first start
+      # can take two minutes.
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS -u "admin:$$KINETICA_ADMIN_PASSWORD"
+          -H 'Content-Type: application/json'
+          -X POST http://127.0.0.1:9191/execute/sql
+          -d '{"statement":"SELECT 1","offset":0,"limit":1,"encoding":"json","request_schema_str":"","data":[],"options":{}}'
+          | grep -q '"status":"OK"'
+      interval: 10s
+      timeout: 15s
+      start_period: 120s
+      retries: 30

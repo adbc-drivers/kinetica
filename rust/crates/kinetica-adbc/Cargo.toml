@@ -1,0 +1,83 @@
+# Copyright (c) 2026 ADBC Drivers Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[package]
+name = "kinetica-adbc"
+# SemVer: MAJOR.MINOR is the Kinetica version the driver works with, and the
+# patch counts the driver's own releases for it, as in VERSION
+version = "7.2.0"
+edition = "2021"
+description = "Arrow ADBC driver for Kinetica"
+license = "Apache-2.0"
+
+[lib]
+# Named so the driver manager's convention yields AdbcDriverKineticaInit, and
+# to match adbc_driver_sqlite and adbc_driver_postgresql on disk.
+name = "adbc_driver_kinetica"
+# rlib for Rust consumers, who use the same synchronous ADBC traits directly;
+# cdylib is the artifact the ADBC driver manager loads from every other language.
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = ["driver_exporter"]
+# Exports AdbcDriverInit from the cdylib. Rust-only consumers can turn this off.
+driver_exporter = ["dep:adbc_ffi"]
+
+[dependencies]
+# Every release of the Rust API for Kinetica 7.2 from the one with
+# RecordRetriever::get_columns_by_key_raw, and none for a later Kinetica
+gpudb-api = "~7.2.3"
+
+adbc_core = "0.24"
+
+# These must resolve to the same arrow-rs that adbc_core picked, or the traits
+# are implemented against a different RecordBatch than they declare. adbc_core
+# asks for ">=58, <60", so the range is matched rather than pinned below it.
+arrow-array = ">=58, <60"
+# lz4 is not on by default in arrow-rs, and the server compresses with it, so
+# a reader without this feature fails on the first batch.
+arrow-ipc = { version = ">=58, <60", features = ["lz4"] }
+arrow-buffer = ">=58, <60"
+arrow-schema = ">=58, <60"
+arrow-cast = ">=58, <60"
+# Reading a local CSV into Arrow, for INSERT ... FROM FILE
+arrow-csv = ">=58, <60"
+# Resolving the glob such a statement may name
+glob = "0.3"
+
+# process and io-util are for AuthProvider=command, which runs the caller's
+# own program and reads a token off its output without blocking on either pipe.
+tokio = { version = "1", features = ["io-util", "process", "rt-multi-thread", "sync", "time"] }
+thiserror = "2"
+# Records are serialized against a schema read from the server, so serde is
+# used directly rather than through a derive.
+serde = "1"
+serde_json = "1"
+# The one INSERT shape multi-head ingest can carry is recognized by pattern.
+regex = "1"
+log = "0.4"
+adbc_ffi = { version = "0.24", optional = true }
+geozero = { version = "0.15.1", default-features = false, features = ["with-wkb", "with-wkt"] }
+# The flows themselves, rather than writing them again. rustls so that TLS
+# needs no system OpenSSL.
+oauth2 = { version = "5", default-features = false, features = ["reqwest", "rustls-tls"] }
+# Pure-Rust crypto, so building the driver needs no C toolchain; the crate
+# insists on exactly one provider being chosen.
+jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto", "use_pem"] }
+# A token's own claims say who holds it and when it stops being good. Reading
+# them is a base64url decode; checking them is the issuing server's job.
+base64 = "0.22"
+
+[dev-dependencies]
+env_logger = "0.11"

@@ -1,0 +1,30 @@
+# Copyright (c) 2026 ADBC Drivers Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The licenses a dependency compiled into the driver may carry. cargo-about
+# refuses a build with a dependency under any other, and writes the text of
+# each one used into the release's LICENSE, from license.tpl.
+accepted = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    # The Avro encoding the Kinetica Rust API uses (serde_avro_fast and its
+    # serde_serializer_quick_unsupported)
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
