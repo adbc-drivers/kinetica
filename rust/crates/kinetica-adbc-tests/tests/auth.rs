@@ -701,7 +701,14 @@ fn a_command_that_fails_is_reported_with_what_it_complained_about() {
         (options::AUTH_PROVIDER, "command"),
         (
             "adbc.kinetica.oauth.command",
-            "echo 'no such profile' 1>&2; exit 2",
+            // Under cmd.exe, which runs it on Windows, commands are separated
+            // with & (where sh would run the first in the background), and
+            // quotes are printed rather than taken away
+            if cfg!(windows) {
+                "echo no such profile 1>&2 & exit 2"
+            } else {
+                "echo 'no such profile' 1>&2; exit 2"
+            },
         ),
     ]);
 
