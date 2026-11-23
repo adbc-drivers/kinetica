@@ -279,7 +279,7 @@ fn expand(template: &str, params: &BTreeMap<String, String>) -> Option<String> {
         let value = lookup(params, key).or(fallback).filter(|v| !v.is_empty())?;
 
         // A trailing slash on a host or an identifier is a copy-and-paste
-        // artefact, and leaving it in gives an issuer nobody's discovery
+        // artifact, and leaving it in gives an issuer nobody's discovery
         // document answers to.
         out.push_str(value.trim_end_matches('/'));
         rest = &rest[close + 1..];
@@ -290,7 +290,9 @@ fn expand(template: &str, params: &BTreeMap<String, String>) -> Option<String> {
     Some(out)
 }
 
-/// Runs the caller's command and takes what it prints as a bearer token.
+/// Runs the caller's command and takes what it prints as a bearer token. The
+/// command line goes to `sh -c`, or `cmd.exe /c` on Windows, so it is written
+/// in that shell's syntax.
 ///
 /// **The command runs with the privileges of the process holding the
 /// connection.** Connection options assembled from untrusted input therefore
@@ -627,10 +629,21 @@ mod tests {
         assert_eq!(token, "not-a-jwt");
     }
 
+    /// @return The command line for whichever shell runs it here: cmd.exe
+    ///         separates commands with `&`, where sh runs one in the background
+    fn for_shell(sh: &'static str, cmd: &'static str) -> &'static str {
+        if cfg!(windows) {
+            cmd
+        } else {
+            sh
+        }
+    }
+
     #[test]
     fn a_command_that_fails_says_what_it_complained_about() {
-        let refused = token_from_command(&params(&[("command", "echo nope 1>&2; exit 3")]))
-            .expect_err("the command failed");
+        let command = for_shell("echo nope 1>&2; exit 3", "echo nope 1>&2 & exit 3");
+        let refused =
+            token_from_command(&params(&[("command", command)])).expect_err("the command failed");
 
         assert!(refused.message.contains("status 3"), "{}", refused.message);
         assert!(refused.message.contains("nope"), "{}", refused.message);
@@ -638,8 +651,9 @@ mod tests {
 
     #[test]
     fn a_command_that_prints_nothing_is_not_a_token() {
-        let refused =
-            token_from_command(&params(&[("command", "true")])).expect_err("nothing was printed");
+        // cmd.exe has no true, and rem is a comment that prints nothing
+        let refused = token_from_command(&params(&[("command", for_shell("true", "rem"))]))
+            .expect_err("nothing was printed");
 
         assert!(refused.message.contains("no token"), "{}", refused.message);
     }
@@ -647,7 +661,12 @@ mod tests {
     #[test]
     fn a_command_that_will_never_finish_is_given_up_on() {
         let refused = token_from_command(&params(&[
-            ("command", "sleep 30"),
+            // cmd.exe has no sleep, and its timeout refuses to run with
+            // standard input closed, as it is here
+            (
+                "command",
+                for_shell("sleep 30", "ping -n 31 127.0.0.1 > nul"),
+            ),
             ("command_timeout_seconds", "1"),
         ]))
         .expect_err("it ran out of time");

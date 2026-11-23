@@ -131,6 +131,8 @@ pub mod options {
     ///
     /// A driver loaded through the C ABI cannot be handed code to call, so
     /// `command` is how a caller plugs in a way of getting tokens of its own.
+    /// Its command line runs under `sh -c`, or `cmd.exe /c` on Windows, and is
+    /// written in that shell's syntax.
     pub const AUTH_PROVIDER: &str = "adbc.kinetica.auth_provider";
 
     /// A bearer token the caller acquired itself, presented as it is.
