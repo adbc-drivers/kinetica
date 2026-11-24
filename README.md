@@ -58,6 +58,25 @@ with conn.cursor() as cur:
     print(cur.fetch_arrow_table())
 ```
 
+The `uri` may also be a `kinetica://` URI, by which a driver manager given
+only the URI knows to load this driver:
+
+```text
+kinetica://[user[:password]@]host[:port][,host[:port]...][/path][?name=value&...]
+```
+
+It connects over HTTPS unless it says `tls=false`. Every other parameter is
+an option under its own name, such as `kinetica.query.max_rows=1000`, and an
+option set directly takes precedence over the URI's. Several hosts are an HA
+ring, tried in the order given.
+
+```python
+conn = dbapi.connect(
+    "kinetica://localhost:9191?tls=false",
+    db_kwargs={"username": "admin", "password": "..."},
+)
+```
+
 The example uses Python's `adbc-driver-manager` 1.8 or later, which finds a
 driver that dbc installed by its name.  Any other ADBC driver manager loads it
 the same way.

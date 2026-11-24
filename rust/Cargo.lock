@@ -1223,9 +1223,9 @@ checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
 name = "gpudb-api"
-version = "7.2.3"
+version = "7.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "007bb2eda0c52914acbf822f773480fc10b95519008f2cd10fcb07f482c2f6f6"
+checksum = "e1a45a47995ae2a3f993fa425d786cd189a59294dc11968129b7dc7fc24cb790"
 dependencies = [
  "arc-swap",
  "byteorder",
@@ -1721,7 +1721,7 @@ dependencies = [
 
 [[package]]
 name = "kinetica-adbc"
-version = "7.2.0"
+version = "7.2.1"
 dependencies = [
  "adbc_core",
  "adbc_ffi",
@@ -1739,11 +1739,13 @@ dependencies = [
  "jsonwebtoken",
  "log",
  "oauth2",
+ "percent-encoding",
  "regex",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
+ "url",
 ]
 
 [[package]]

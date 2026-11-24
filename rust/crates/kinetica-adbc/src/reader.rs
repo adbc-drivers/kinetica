@@ -27,16 +27,21 @@
 
 use std::sync::Arc;
 
+use std::collections::HashMap;
+
 use adbc_core::error::Result as AdbcResult;
 use arrow_array::{RecordBatch, RecordBatchReader};
 use arrow_ipc::reader::StreamReader;
-use arrow_schema::{ArrowError, Schema};
+use arrow_schema::{ArrowError, Field, Schema};
 
 use crate::error::from_arrow;
+use crate::metadata;
 
-/// Reads the batches out of one response.
+/// Reads the batches out of one response, with the server's metadata keys
+/// given in Arrow's form, `KINETICA:type` for `kinetica.type`.
 pub struct ArrowStreamReader {
     inner: StreamReader<std::io::Cursor<Vec<u8>>>,
+    schema: Arc<Schema>,
 }
 
 impl ArrowStreamReader {
@@ -44,21 +49,70 @@ impl ArrowStreamReader {
     pub fn new(stream: Vec<u8>) -> AdbcResult<Self> {
         let inner =
             StreamReader::try_new(std::io::Cursor::new(stream), None).map_err(from_arrow)?;
-        Ok(Self { inner })
+        let schema = Arc::new(renamed(&inner.schema()));
+
+        Ok(Self { inner, schema })
     }
+}
+
+/// @return The metadata with the server's keys in Arrow's form, and the
+///     column's type named as Kinetica's SQL writes it
+fn renamed_keys(said: &HashMap<String, String>) -> HashMap<String, String> {
+    let server_type = format!("{}type", metadata::SERVER_PREFIX);
+    let server_properties = format!("{}properties", metadata::SERVER_PREFIX);
+
+    said.iter()
+        .map(|(key, value)| {
+            if *key == server_type {
+                let properties = said.get(&server_properties).map(String::as_str);
+                let named = crate::ddl::sql_type_name(value, properties.unwrap_or_default());
+
+                return (metadata::TYPE.to_string(), named);
+            }
+
+            let key = match key.strip_prefix(metadata::SERVER_PREFIX) {
+                Some(name) => format!("{}{name}", metadata::PREFIX),
+                None => key.clone(),
+            };
+
+            (key, value.clone())
+        })
+        .collect()
+}
+
+/// @return The schema with its metadata keys, and its fields', in Arrow's form
+fn renamed(schema: &Schema) -> Schema {
+    let fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .map(|field| {
+            field
+                .as_ref()
+                .clone()
+                .with_metadata(renamed_keys(field.metadata()))
+        })
+        .collect();
+
+    Schema::new_with_metadata(fields, renamed_keys(schema.metadata()))
 }
 
 impl Iterator for ArrowStreamReader {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        // The columns themselves are shared, not copied; only the labels
+        // on the schema change.
+        self.inner.next().map(|batch| {
+            batch.and_then(|batch| {
+                RecordBatch::try_new(Arc::clone(&self.schema), batch.columns().to_vec())
+            })
+        })
     }
 }
 
 impl RecordBatchReader for ArrowStreamReader {
     fn schema(&self) -> Arc<Schema> {
-        self.inner.schema()
+        Arc::clone(&self.schema)
     }
 }
 
@@ -399,6 +453,44 @@ mod tests {
             opened.lock().unwrap().push(run);
             Ok(ints(&results[run]))
         })
+    }
+
+    #[test]
+    fn the_servers_metadata_keys_come_out_in_arrows_form() {
+        let field = Field::new("c", DataType::Utf8, true).with_metadata(HashMap::from([
+            ("kinetica.type".to_string(), "char8".to_string()),
+            (
+                "kinetica.properties".to_string(),
+                "char8,nullable".to_string(),
+            ),
+            ("ARROW:extension:name".to_string(), "arrow.json".to_string()),
+        ]));
+        let mut reader =
+            ArrowStreamReader::new(page(field, Arc::new(StringArray::from(vec!["x"])))).unwrap();
+
+        let said = reader.schema().field(0).metadata().clone();
+        assert_eq!(
+            said.get(metadata::TYPE).map(String::as_str),
+            Some("VARCHAR(8)"),
+            "the type is named as SQL writes it"
+        );
+        assert_eq!(
+            said.get(metadata::PROPERTIES).map(String::as_str),
+            Some("char8,nullable")
+        );
+        assert_eq!(
+            said.get("ARROW:extension:name").map(String::as_str),
+            Some("arrow.json"),
+            "Arrow's own keys are left alone"
+        );
+        assert!(!said.contains_key("kinetica.type"));
+
+        let batch = reader.next().unwrap().unwrap();
+        assert_eq!(
+            batch.schema(),
+            reader.schema(),
+            "each batch carries the same"
+        );
     }
 
     #[test]

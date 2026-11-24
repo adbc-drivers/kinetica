@@ -16,7 +16,7 @@
 //!
 //! Two things are asserted of every query here: the rows, which must be the
 //! rows the SQL engine would have given, and which way it was routed, which
-//! the driver reports under `adbc.kinetica.key_lookup`. Rows alone would pass
+//! the driver reports under `kinetica.key_lookup`. Rows alone would pass
 //! whether or not the lookup was ever used; routing alone would not notice it
 //! answering with the wrong rows.
 
@@ -535,7 +535,7 @@ fn a_table_rebuilt_with_another_key_is_not_read_with_the_old_one() {
 }
 
 /// The lookup is off until a caller asks for it, with
-/// `adbc.kinetica.use_key_lookup`, and either route answers the same.
+/// `kinetica.query.use_key_lookup`, and either route answers the same.
 #[test]
 #[cfg_attr(
     not(kinetica_server),

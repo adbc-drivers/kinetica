@@ -23,19 +23,18 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
-use adbc_core::error::{Error as AdbcError, Result as AdbcResult, Status};
+use adbc_core::error::{Result as AdbcResult, Status};
 use arrow_array::cast::AsArray;
 use arrow_array::{Array, ArrayRef, RecordBatch, RecordBatchReader};
 use arrow_schema::{DataType, TimeUnit};
 use serde::ser::{Serialize, SerializeMap, Serializer}; // codespell:ignore ser
 
 use gpudb_api::{
-    BulkInserter, Kinetica, KineticaError, KineticaRecord, ShardKeyExtractor, ShardKeyValue,
-    ShardKeyValues,
+    BulkInserter, Kinetica, KineticaRecord, ShardKeyExtractor, ShardKeyValue, ShardKeyValues,
 };
 
 use crate::context::Context;
-use crate::error::{from_arrow, incompatible, to_adbc, unsupported};
+use crate::error::{could_not, error, from_arrow, incompatible, unsupported};
 use crate::loading::Loading;
 use crate::options;
 use crate::runtime;
@@ -196,7 +195,8 @@ fn shard_key_value(value: &Value) -> ShardKeyValue<'_> {
 /// inserter's to say, once it is built from the schema text read here.
 /// @return The schema to build records against, and the Avro schema text
 fn describe(client: &Kinetica, table: &str) -> AdbcResult<(IngestSchema, String)> {
-    let response = runtime::block_on(client.show_table(table.to_string())).map_err(to_adbc)?;
+    let response = runtime::block_on(client.show_table(table.to_string()))
+        .map_err(could_not("describe the table to load"))?;
 
     let schema_text = response
         .type_schemas
@@ -447,8 +447,8 @@ fn value_at(column: &ArrayRef, target: Target, row: usize) -> AdbcResult<Value> 
             DataType::Binary => match wkb_to_wkt(column.as_binary::<i32>().value(row)) {
                 Some(wkt) => Value::Text(wkt),
                 None => {
-                    return Err(AdbcError::with_message_and_status(
-                        format!("row {row} holds a geometry that is not WKB this driver can read"),
+                    return Err(error(
+                        &format!("row {row} holds a geometry that is not WKB this driver can read"),
                         Status::InvalidData,
                     ))
                 }
@@ -460,8 +460,8 @@ fn value_at(column: &ArrayRef, target: Target, row: usize) -> AdbcResult<Value> 
             _ => match wkt_to_wkb(column.as_string::<i32>().value(row)) {
                 Some(wkb) => Value::Bytes(wkb),
                 None => {
-                    return Err(AdbcError::with_message_and_status(
-                        format!("row {row} holds a geometry that is not WKT this driver can read"),
+                    return Err(error(
+                        &format!("row {row} holds a geometry that is not WKT this driver can read"),
                         Status::InvalidData,
                     ))
                 }
@@ -660,7 +660,7 @@ impl Inserters {
             )),
             &schema_text,
         ))
-        .map_err(to_adbc)?;
+        .map_err(could_not("prepare the ingest"))?;
 
         // Which columns route a record is only known once the inserter has read
         // the table's shard key, or its primary key when it has none, so they
@@ -777,9 +777,10 @@ pub(crate) fn ingest(
     settled?;
 
     if let Some(first) = errors.first() {
-        return Err(to_adbc(KineticaError::Config(format!(
-            "{failed} of {queued} rows failed to insert: {first:?}"
-        ))));
+        return Err(error(
+            &format!("could not insert {failed} of {queued} rows: {first:?}"),
+            Status::IO,
+        ));
     }
 
     Ok(queued)
@@ -808,7 +809,7 @@ fn stream(
 /// but also retire an inserter worth keeping.
 /// @return An error if the wait could not be made
 fn settle(inserter: &Arc<BulkInserter<Record>>) -> AdbcResult<()> {
-    runtime::block_on(inserter.flush()).map_err(to_adbc)
+    runtime::block_on(inserter.flush()).map_err(could_not("finish the ingest"))
 }
 
 /// Converts one batch and hands its rows to the inserter, counting each one
@@ -842,7 +843,7 @@ fn append(
                 schema: Arc::clone(schema),
                 values,
             }))
-            .map_err(|refused| to_adbc(refused.into()))?;
+            .map_err(|refused| could_not("queue a row")(refused.into()))?;
 
         *queued += 1;
     }

@@ -32,7 +32,7 @@ use gpudb_api::{Kinetica, ShowTableRequestOptions};
 
 use crate::catalog;
 use crate::context;
-use crate::error::{from_arrow, missing, not_found, to_adbc, unsupported};
+use crate::error::{could_not, error, from_arrow, missing, not_found, unsupported};
 use crate::partition;
 use crate::reader::{ArrowStreamReader, SingleBatchReader};
 use crate::runtime;
@@ -121,7 +121,7 @@ impl Optionable for KineticaConnection {
             // always on and turning it off cannot do anything. Asking for
             // autocommit is accepted, so that a tool which asks as a matter of
             // course still works. Asking to turn it off is refused unless the
-            // caller has set `adbc.kinetica.fake_transactions` to have the
+            // caller has set `kinetica.fake_transactions` to have the
             // transaction calls accepted and ignored; even then, a later
             // rollback cannot undo anything. The refusal says "not
             // implemented" because that is what a caller asking on principle
@@ -312,8 +312,8 @@ impl KineticaConnection {
     ///         has not asked for the transaction calls to be accepted and
     ///         ignored
     fn no_transactions(&self, what: &str, status: Status) -> AdbcError {
-        AdbcError::with_message_and_status(
-            format!(
+        error(
+            &format!(
                 "{what}: Kinetica has no transactions, so this would do nothing. Set {} to \
                  accept it and carry on regardless.",
                 crate::options::FAKE_TRANSACTIONS
@@ -481,7 +481,7 @@ impl KineticaConnection {
             self.session
                 .show_table_with_opts(schema.to_string(), options),
         )
-        .map_err(to_adbc)?;
+        .map_err(could_not("list the tables"))?;
 
         Ok(response
             .table_names
@@ -792,7 +792,7 @@ impl Connection for KineticaConnection {
 
     /// Every statement has already taken effect, so there is nothing to make
     /// permanent. Saying so is the default; a caller that would rather have
-    /// the call accepted and ignored sets `adbc.kinetica.fake_transactions`
+    /// the call accepted and ignored sets `kinetica.fake_transactions`
     /// on the connection.
     fn commit(&mut self) -> AdbcResult<()> {
         if self.fake_transactions {
@@ -846,10 +846,10 @@ impl Connection for KineticaConnection {
                 made.push(page.paging_table);
                 KineticaStatement::discard(&self.session, &made);
 
-                return Err(AdbcError::with_message_and_status(
-                    "the result this partition was cut from is gone: the statement that \
-                     executed the partitions was released, or the result outlived its \
-                     time to live; execute the partitions again",
+                return Err(error(
+                    "could not read the partition: the result it was cut from is gone. \
+                     The statement that executed the partitions was released, or the \
+                     result outlived its time to live; execute the partitions again",
                     Status::InvalidState,
                 ));
             }

@@ -16,7 +16,7 @@
 name = "kinetica-adbc"
 # SemVer: MAJOR.MINOR is the Kinetica version the driver works with, and the
 # patch counts the driver's own releases for it, as in VERSION
-version = "7.2.0"
+version = "7.2.1"
 edition = "2021"
 description = "Arrow ADBC driver for Kinetica"
 license = "Apache-2.0"
@@ -37,7 +37,7 @@ driver_exporter = ["dep:adbc_ffi"]
 [dependencies]
 # Every release of the Rust API for Kinetica 7.2 from the one with
 # RecordRetriever::get_columns_by_key_raw, and none for a later Kinetica
-gpudb-api = "~7.2.3"
+gpudb-api = "~7.2.4"
 
 adbc_core = "0.24"
 
@@ -55,6 +55,9 @@ arrow-cast = ">=58, <60"
 arrow-csv = ">=58, <60"
 # Resolving the glob such a statement may name
 glob = "0.3"
+# Reading the query and the user of a kinetica:// URI
+url = "2"
+percent-encoding = "2"
 
 # process and io-util are for AuthProvider=command, which runs the caller's
 # own program and reads a token off its output without blocking on either pipe.

@@ -42,7 +42,7 @@ use regex::Regex;
 
 use gpudb_api::{Column, ColumnType, RecordEncoding, RecordRetriever, ShardKeyValue, Type};
 
-use crate::error::to_adbc;
+use crate::error::could_not;
 use crate::runtime;
 use crate::session::Session;
 use crate::statement::Page;
@@ -305,7 +305,7 @@ impl Planned {
             offset,
             RecordEncoding::Arrow,
         ))
-        .map_err(to_adbc)?;
+        .map_err(could_not("look up the key"))?;
 
         Ok(Page {
             paging_table: String::new(),

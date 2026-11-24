@@ -19,13 +19,12 @@ import pytest
 def test_package() -> None:
     # No Kinetica runs here. The driver checks the server is there as the
     # connection opens, so its own error for an address nothing answers on
-    # shows the installed package was found by name, loaded and run.
+    # shows the installed package was found from the URI's scheme alone,
+    # loaded and run.
     with (
         pytest.raises(
             adbc_driver_manager.dbapi.OperationalError, match="Connectivity check"
         ),
-        adbc_driver_manager.dbapi.connect(
-            driver="kinetica", uri="http://localhost:1"
-        ),
+        adbc_driver_manager.dbapi.connect("kinetica://localhost:1?tls=false"),
     ):
         pass

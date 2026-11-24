@@ -277,8 +277,8 @@ fn every_type_arrives_as_the_documented_arrow_type_and_value() {
         // The Kinetica type travels in metadata, so a consumer can recreate a
         // column Arrow has no name for.
         assert!(
-            field.metadata().contains_key("kinetica.type"),
-            "{name} lost its kinetica.type metadata"
+            field.metadata().contains_key("KINETICA:type"),
+            "{name} lost its KINETICA:type metadata"
         );
 
         // Row two is all nulls, so every type carries a validity bitmap the
@@ -661,7 +661,7 @@ fn partitions_return_every_row_of_every_type_exactly_once() {
     let mut statement = connection.new_statement().expect("statement");
     statement
         .set_option(
-            OptionStatement::Other("adbc.kinetica.batch_size".into()),
+            OptionStatement::Other("kinetica.query.batch_size".into()),
             OptionValue::Int(500),
         )
         .expect("batch size");
@@ -783,7 +783,7 @@ fn a_partitioned_read_keeps_a_paging_table_and_then_lets_it_go() {
         let mut statement = connection.new_statement().expect("statement");
         statement
             .set_option(
-                OptionStatement::Other("adbc.kinetica.batch_size".into()),
+                OptionStatement::Other("kinetica.query.batch_size".into()),
                 OptionValue::Int(500),
             )
             .expect("batch size");
@@ -843,7 +843,7 @@ fn partitions_nobody_reads_are_let_go_of_too() {
         let mut statement = connection.new_statement().expect("statement");
         statement
             .set_option(
-                OptionStatement::Other("adbc.kinetica.batch_size".into()),
+                OptionStatement::Other("kinetica.query.batch_size".into()),
                 OptionValue::Int(500),
             )
             .expect("batch size");
@@ -902,7 +902,7 @@ fn a_partition_read_after_its_statement_is_gone_is_refused() {
         let mut statement = connection.new_statement().expect("statement");
         statement
             .set_option(
-                OptionStatement::Other("adbc.kinetica.batch_size".into()),
+                OptionStatement::Other("kinetica.query.batch_size".into()),
                 OptionValue::Int(500),
             )
             .expect("batch size");
@@ -959,7 +959,7 @@ fn partitions_of_a_materialized_query_see_the_result_they_started_with() {
     let mut statement = connection.new_statement().expect("statement");
     statement
         .set_option(
-            OptionStatement::Other("adbc.kinetica.batch_size".into()),
+            OptionStatement::Other("kinetica.query.batch_size".into()),
             OptionValue::Int(500),
         )
         .expect("batch size");

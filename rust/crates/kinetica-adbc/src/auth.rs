@@ -75,7 +75,7 @@ const EXPIRY_FRACTION: u32 = 5;
 const REDIRECT_WAIT: Duration = Duration::from_secs(300);
 
 /// The prefix a flow's own parameters are named under.
-pub const PARAM_PREFIX: &str = "adbc.kinetica.oauth.";
+pub const PARAM_PREFIX: &str = "kinetica.oauth.";
 
 /// The claim a name is read out of when neither the caller nor the provider
 /// names another: OpenID Connect's subject identifier.
@@ -1413,9 +1413,8 @@ mod tests {
         auth.set(options::AUTH_METHOD, "oauth").unwrap();
         auth.set(options::OAUTH_GRANT, "client_credentials")
             .unwrap();
-        auth.set("adbc.kinetica.oauth.tenant_id", "a-tenant")
-            .unwrap();
-        auth.set("adbc.kinetica.oauth.application_id_uri", "api://kinetica")
+        auth.set("kinetica.oauth.tenant_id", "a-tenant").unwrap();
+        auth.set("kinetica.oauth.application_id_uri", "api://kinetica")
             .unwrap();
 
         let resolved = auth.translated(Provider::Entra.vendor(), Grant::ClientCredentials);
@@ -1434,7 +1433,7 @@ mod tests {
     #[test]
     fn translating_twice_changes_nothing() {
         let mut auth = Auth::default();
-        auth.set("adbc.kinetica.oauth.okta_domain", "example.okta.com")
+        auth.set("kinetica.oauth.okta_domain", "example.okta.com")
             .unwrap();
 
         let once = auth.translated(Provider::Okta.vendor(), Grant::AuthorizationCode);
@@ -1451,13 +1450,11 @@ mod tests {
         first
             .set(options::OAUTH_GRANT, "client_credentials")
             .unwrap();
-        first
-            .set("adbc.kinetica.oauth.client_id", "shared")
-            .unwrap();
-        first.set("adbc.kinetica.oauth.tenant_id", "one").unwrap();
+        first.set("kinetica.oauth.client_id", "shared").unwrap();
+        first.set("kinetica.oauth.tenant_id", "one").unwrap();
 
         let mut second = first.clone();
-        second.set("adbc.kinetica.oauth.tenant_id", "two").unwrap();
+        second.set("kinetica.oauth.tenant_id", "two").unwrap();
 
         let key = |auth: &Auth| {
             auth.translated(Provider::Entra.vendor(), Grant::ClientCredentials)
@@ -1475,7 +1472,7 @@ mod tests {
     fn a_vendor_is_implied_by_its_own_parameters_but_only_where_a_flow_runs() {
         let mut auth = Auth::default();
         auth.set(options::AUTH_METHOD, "oauth").unwrap();
-        auth.set("adbc.kinetica.oauth.okta_domain", "example.okta.com")
+        auth.set("kinetica.oauth.okta_domain", "example.okta.com")
             .unwrap();
 
         assert_eq!(
@@ -1525,7 +1522,7 @@ mod tests {
         auth.set(options::AUTH_PROVIDER, "command").unwrap();
         auth.set(options::OAUTH_GRANT, "client_credentials")
             .unwrap();
-        auth.set("adbc.kinetica.oauth.command", "echo t").unwrap();
+        auth.set("kinetica.oauth.command", "echo t").unwrap();
 
         let refused = auth.bearer().unwrap_err().message;
 
@@ -1540,7 +1537,7 @@ mod tests {
         auth.set(options::AUTH_METHOD, "oauth").unwrap();
         auth.set(options::AUTH_PROVIDER, "command").unwrap();
         auth.set(options::OAUTH_TOKEN_CACHE, "none").unwrap();
-        auth.set("adbc.kinetica.oauth.command", &format!("echo {token}"))
+        auth.set("kinetica.oauth.command", &format!("echo {token}"))
             .unwrap();
 
         let presented = auth.bearer().unwrap().expect("the command produced one");
@@ -1669,13 +1666,8 @@ mod tests {
     fn a_flow_parameter_is_kept_under_its_own_name() {
         let mut auth = Auth::default();
 
-        assert!(auth
-            .set("adbc.kinetica.oauth.client_id", "a-client")
-            .unwrap());
-        assert_eq!(
-            auth.get("adbc.kinetica.oauth.client_id").unwrap(),
-            "a-client"
-        );
+        assert!(auth.set("kinetica.oauth.client_id", "a-client").unwrap());
+        assert_eq!(auth.get("kinetica.oauth.client_id").unwrap(), "a-client");
         assert_eq!(auth.param("client_id").unwrap(), "a-client");
     }
 
@@ -1683,8 +1675,8 @@ mod tests {
     fn a_name_that_is_not_one_of_these_is_left_to_the_caller() {
         let mut auth = Auth::default();
 
-        assert!(!auth.set("adbc.kinetica.batch_size", "10").unwrap());
-        assert!(auth.get("adbc.kinetica.batch_size").is_none());
+        assert!(!auth.set("kinetica.query.batch_size", "10").unwrap());
+        assert!(auth.get("kinetica.query.batch_size").is_none());
     }
 
     #[test]
@@ -1692,8 +1684,7 @@ mod tests {
         let mut auth = Auth::default();
         auth.set(options::OAUTH_GRANT, "client_credentials")
             .unwrap();
-        auth.set("adbc.kinetica.oauth.client_id", "a-client")
-            .unwrap();
+        auth.set("kinetica.oauth.client_id", "a-client").unwrap();
 
         let error = auth.bearer().unwrap_err();
 
@@ -1705,7 +1696,7 @@ mod tests {
         let mut auth = Auth::default();
         auth.set(options::OAUTH_GRANT, "client_credentials")
             .unwrap();
-        auth.set("adbc.kinetica.oauth.token_url", "https://id.example/token")
+        auth.set("kinetica.oauth.token_url", "https://id.example/token")
             .unwrap();
 
         let error = auth.bearer().unwrap_err();
@@ -1719,10 +1710,10 @@ mod tests {
         first
             .set(options::OAUTH_GRANT, "client_credentials")
             .unwrap();
-        first.set("adbc.kinetica.oauth.client_id", "one").unwrap();
+        first.set("kinetica.oauth.client_id", "one").unwrap();
 
         let mut second = first.clone();
-        second.set("adbc.kinetica.oauth.client_id", "two").unwrap();
+        second.set("kinetica.oauth.client_id", "two").unwrap();
 
         assert_ne!(
             first.cache_key(Some(Grant::ClientCredentials)),

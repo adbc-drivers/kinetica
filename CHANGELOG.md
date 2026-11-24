@@ -18,6 +18,38 @@
 
 ## Version 7.2
 
+### Version 7.2.1 - 2026-11-24
+
+#### Added
+-   Connection by a `kinetica://` URI, which lets a driver manager given only
+    the URI load this driver:
+    `kinetica://[user[:password]@]host[:port][/path][?name=value&...]`, with
+    several comma-separated hosts for an HA ring.  It connects over HTTPS
+    unless it says `tls=false`, and takes any option as a query parameter
+    (e.g., `?kinetica.query.max_rows=1000`); an option set directly takes
+    precedence.  `http://` and `https://` URLs work as before.
+
+#### Changed
+-   Options are named `kinetica.*` rather than `adbc.kinetica.*`.
+-   Error messages start with `[kinetica]`, and prepend the driver's message.
+-   A result column's field metadata names its type as Kinetica's SQL writes
+    it, under `KINETICA:type` (e.g., `VARCHAR(16)`, `DECIMAL(10,2)`), and
+    gives the server's properties and nullability under `KINETICA:properties`
+    and `KINETICA:nullable`, in place of the `kinetica.type`,
+    `kinetica.properties` and `kinetica.nullable` keys.  Ingest still reads
+    `kinetica.properties`.
+-   Updated underlying Rust API to 7.2.4.
+
+#### Fixed
+-   A request the server refused with "Access denied" was reported as a
+    connection failure (`ADBC_STATUS_IO`, SQLSTATE 08006); it is now
+    `ADBC_STATUS_UNAUTHORIZED` (SQLSTATE 42501).
+
+#### Notes
+-   7.2.0 was published on GitHub but never distributed through `dbc` or
+    PyPI; 7.2.1 is the first release they carry.
+
+
 ### Version 7.2.0 - 2026-11-22
 
 Initial release of the Kinetica ADBC driver, an Arrow Database Connectivity

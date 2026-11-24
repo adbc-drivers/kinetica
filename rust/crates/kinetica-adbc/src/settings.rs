@@ -410,8 +410,8 @@ mod tests {
     fn a_name_that_is_not_one_of_these_is_left_to_the_caller() {
         let mut settings = Settings::default();
 
-        assert!(!settings.set("adbc.kinetica.batch_size", "100").unwrap());
-        assert!(settings.get("adbc.kinetica.batch_size").is_none());
+        assert!(!settings.set("kinetica.query.batch_size", "100").unwrap());
+        assert!(settings.get("kinetica.query.batch_size").is_none());
     }
 
     #[test]

@@ -212,18 +212,25 @@ impl FileRead {
     }
 
     /// Takes what a statement's own `WITH OPTIONS (...)` said, which beats
-    /// what the connection was told. The names are the option names without
-    /// the prefix, written with spaces or underscores.
+    /// what the connection was told. A statement names each as `file read`
+    /// and the option's last part, with spaces or underscores: `file read
+    /// limit` is `kinetica.ingest.file.limit`.
     /// @return A copy carrying what the statement said
     pub(crate) fn and(&self, said: &[(String, String)]) -> AdbcResult<Self> {
         let mut read = self.clone();
 
         for (name, value) in said {
-            let full = format!("adbc.kinetica.{}", name.to_lowercase());
-
             // Anything else is for the server to make sense of, not this: a
             // statement may carry ingest options beside the file ones.
-            let _ = read.set(&full, value)?;
+            let Some(part) = name
+                .to_lowercase()
+                .strip_prefix("file_read_")
+                .map(str::to_string)
+            else {
+                continue;
+            };
+
+            let _ = read.set(&format!("kinetica.ingest.file.{part}"), value)?;
         }
 
         Ok(read)

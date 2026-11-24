@@ -32,28 +32,28 @@ use crate::options;
 /// reads, which is the ADBC option's name without its prefix.
 const FLAGS: [(&str, &str); 10] = [
     (
-        "adbc.kinetica.cost_based_optimization",
+        "kinetica.query.cost_based_optimization",
         "cost_based_optimization",
     ),
     (
-        "adbc.kinetica.distributed_operations",
+        "kinetica.query.distributed_operations",
         "distributed_operations",
     ),
-    ("adbc.kinetica.ignore_existing_pk", "ignore_existing_pk"),
+    ("kinetica.query.ignore_existing_pk", "ignore_existing_pk"),
     (
-        "adbc.kinetica.update_on_existing_pk",
+        "kinetica.query.update_on_existing_pk",
         "update_on_existing_pk",
     ),
-    ("adbc.kinetica.parallel_execution", "parallel_execution"),
-    ("adbc.kinetica.plan_cache", "plan_cache"),
-    ("adbc.kinetica.results_caching", "results_caching"),
+    ("kinetica.query.parallel_execution", "parallel_execution"),
+    ("kinetica.query.plan_cache", "plan_cache"),
+    ("kinetica.query.results_caching", "results_caching"),
     (
-        "adbc.kinetica.rule_based_optimization",
+        "kinetica.query.rule_based_optimization",
         "rule_based_optimization",
     ),
-    ("adbc.kinetica.ssq_optimization", "ssq_optimization"),
+    ("kinetica.query.ssq_optimization", "ssq_optimization"),
     (
-        "adbc.kinetica.validate_change_column",
+        "kinetica.query.validate_change_column",
         "validate_change_column",
     ),
 ];
@@ -212,7 +212,7 @@ mod tests {
     fn a_name_that_is_not_one_of_these_is_left_to_the_caller() {
         let mut query = QueryOptions::default();
 
-        assert!(!query.set("adbc.kinetica.batch_size", "10").unwrap());
-        assert!(query.get("adbc.kinetica.batch_size").is_none());
+        assert!(!query.set("kinetica.query.batch_size", "10").unwrap());
+        assert!(query.get("kinetica.query.batch_size").is_none());
     }
 }
