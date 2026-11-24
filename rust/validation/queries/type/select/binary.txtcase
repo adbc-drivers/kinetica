@@ -16,6 +16,9 @@
 
 # Kinetica's SQL engine cannot parse an empty hex literal, X''
 
+[tags]
+field-type-name = "BLOB"
+
 // part: setup_query
 
 CREATE TABLE test_binary (

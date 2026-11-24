@@ -28,7 +28,7 @@ use gpudb_api::{ClearTablesRequestOptions, ExecuteSqlRequest, ExecuteSqlRequestO
 use crate::context::{self, Context};
 use crate::control::{self, Control};
 use crate::ddl;
-use crate::error::{from_arrow, invalid, not_found, not_ready, to_adbc, unsupported};
+use crate::error::{could_not, from_arrow, invalid, not_found, not_ready, unsupported};
 use crate::file;
 use crate::ingest;
 use crate::insert;
@@ -489,7 +489,8 @@ impl KineticaStatement {
 
         // The raw form sends the request as built and hands back the payload
         // undecoded; the decoded one insists on Avro and transposes it.
-        let response = runtime::block_on(client.execute_sql_raw(&request)).map_err(to_adbc)?;
+        let response = runtime::block_on(client.execute_sql_raw(&request))
+            .map_err(could_not("run the statement"))?;
 
         // The server says which of the two counts it filled: a query reports
         // how many rows the whole result holds and nothing about changes, and
@@ -1194,7 +1195,8 @@ impl Statement for KineticaStatement {
     /// identical queries in flight at once cannot be told apart, and both are
     /// cancelled.
     fn cancel(&mut self) -> AdbcResult<()> {
-        let response = runtime::block_on(self.session.admin_show_jobs()).map_err(to_adbc)?;
+        let response = runtime::block_on(self.session.admin_show_jobs())
+            .map_err(could_not("find the running statement"))?;
 
         let mine: Vec<i64> = response
             .job_id
@@ -1212,7 +1214,7 @@ impl Statement for KineticaStatement {
             self.session
                 .admin_alter_jobs(mine, CANCEL_ACTION.to_string()),
         )
-        .map_err(to_adbc)?;
+        .map_err(could_not("cancel the statement"))?;
 
         Ok(())
     }

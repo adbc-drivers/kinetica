@@ -181,7 +181,7 @@ fn an_option_the_driver_does_not_know_is_still_refused() {
     let error = KineticaDriver::default()
         .new_database_with_opts([
             (OptionDatabase::Uri, OptionValue::String(url)),
-            option("adbc.kinetica.not_a_setting", "1"),
+            option("kinetica.not_a_setting", "1"),
         ])
         .expect_err("an unknown option should not be swallowed");
 
@@ -255,4 +255,64 @@ fn a_bearer_token_is_offered_to_the_server() {
             "a token should reach the server, not be refused here: {error}"
         ),
     }
+}
+
+/// @return How many rows a five-row query answers with on the connection
+fn rows_of_five(connection: &mut adbc_driver_kinetica::KineticaConnection) -> usize {
+    let mut statement = connection.new_statement().expect("statement");
+    statement
+        .set_sql_query("SELECT generate_series AS n FROM TABLE(GENERATE_SERIES(1, 5))")
+        .expect("set query");
+
+    statement
+        .execute()
+        .expect("execute")
+        .map(|batch| batch.expect("batch").num_rows())
+        .sum()
+}
+
+/// A `kinetica://` URI reaches the same server as the URL it stands for, and
+/// carries options as its query; an option set directly beats the URI's.
+#[test]
+#[cfg_attr(
+    not(kinetica_server),
+    ignore = "set KI_URL, KI_USER and KI_PWD to run against a Kinetica"
+)]
+fn a_kinetica_uri_connects_and_carries_options() {
+    let (url, user, password) = credentials();
+    let (scheme, rest) = url.split_once("://").expect("KI_URL is a URL");
+    let tls = scheme.eq_ignore_ascii_case("https");
+    let uri = format!("kinetica://{rest}?tls={tls}&{}=2", options::MAX_ROWS);
+
+    let database_with = |extra: Vec<(OptionDatabase, OptionValue)>| {
+        let mut said = vec![
+            (OptionDatabase::Uri, OptionValue::String(uri.clone())),
+            (OptionDatabase::Username, OptionValue::String(user.clone())),
+            (
+                OptionDatabase::Password,
+                OptionValue::String(password.clone()),
+            ),
+        ];
+        said.extend(extra);
+
+        KineticaDriver::default()
+            .new_database_with_opts(said)
+            .expect("database")
+    };
+
+    let mut connection = database_with(vec![]).new_connection().expect("connection");
+    assert_eq!(
+        rows_of_five(&mut connection),
+        2,
+        "the URI's row cap applies"
+    );
+
+    let mut connection = database_with(vec![option(options::MAX_ROWS, "3")])
+        .new_connection()
+        .expect("connection");
+    assert_eq!(
+        rows_of_five(&mut connection),
+        3,
+        "an option set directly beats the URI's"
+    );
 }

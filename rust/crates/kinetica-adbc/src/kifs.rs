@@ -25,7 +25,7 @@ use regex::Regex;
 
 use gpudb_api::filesystem::KifsFileHandler;
 
-use crate::error::{invalid, to_adbc};
+use crate::error::{could_not, invalid};
 use crate::runtime;
 use crate::session::Session;
 
@@ -116,7 +116,7 @@ impl Transfer {
                 handler
                     .create_directory(&self.target, true)
                     .await
-                    .map_err(to_adbc)?;
+                    .map_err(could_not("create the KiFS directory"))?;
             }
 
             for source in &self.sources {
@@ -124,7 +124,7 @@ impl Transfer {
                     Direction::Up => handler.upload(source, &self.target, None, None).await,
                     Direction::Down => handler.download(source, &self.target, None, None).await,
                 }
-                .map_err(to_adbc)?;
+                .map_err(could_not("transfer the file"))?;
 
                 moved += counted(&results);
             }

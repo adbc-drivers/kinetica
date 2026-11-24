@@ -292,7 +292,7 @@ fn an_option_nobody_knows_is_refused_by_the_connection_too() {
 
     let error = connection
         .set_option(
-            OptionConnection::Other("adbc.kinetica.not_an_option".to_string()),
+            OptionConnection::Other("kinetica.not_an_option".to_string()),
             OptionValue::String("1".to_string()),
         )
         .expect_err("an unknown option should not be swallowed");

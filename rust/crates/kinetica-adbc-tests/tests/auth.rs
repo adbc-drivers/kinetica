@@ -289,12 +289,12 @@ fn client_credentials_are_sent_to_the_token_endpoint() {
     let auth = auth(&[
         (options::OAUTH_GRANT, "client_credentials"),
         (
-            "adbc.kinetica.oauth.token_url",
+            "kinetica.oauth.token_url",
             &format!("{}/token", provider.url),
         ),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
-        ("adbc.kinetica.oauth.client_secret", "a-secret"),
-        ("adbc.kinetica.oauth.scope", "kinetica read"),
+        ("kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.client_secret", "a-secret"),
+        ("kinetica.oauth.scope", "kinetica read"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -316,8 +316,8 @@ fn the_endpoints_are_found_from_the_issuer_alone() {
 
     let auth = auth(&[
         (options::OAUTH_GRANT, "client_credentials"),
-        ("adbc.kinetica.oauth.issuer", &provider.url),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.issuer", &provider.url),
+        ("kinetica.oauth.client_id", "analytics"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -342,11 +342,11 @@ fn a_refresh_token_is_exchanged_for_an_access_token() {
     let auth = auth(&[
         (options::OAUTH_GRANT, "refresh_token"),
         (
-            "adbc.kinetica.oauth.token_url",
+            "kinetica.oauth.token_url",
             &format!("{}/token", provider.url),
         ),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
-        ("adbc.kinetica.oauth.refresh_token", "the-refresh-token"),
+        ("kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.refresh_token", "the-refresh-token"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -370,15 +370,12 @@ fn a_token_from_elsewhere_is_exchanged_for_one_scoped_here() {
     let auth = auth(&[
         (options::OAUTH_GRANT, "token-exchange"),
         (
-            "adbc.kinetica.oauth.token_url",
+            "kinetica.oauth.token_url",
             &format!("{}/token", provider.url),
         ),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
-        (
-            "adbc.kinetica.oauth.subject_token",
-            "a-token-for-somewhere-else",
-        ),
-        ("adbc.kinetica.oauth.audience", "kinetica"),
+        ("kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.subject_token", "a-token-for-somewhere-else"),
+        ("kinetica.oauth.audience", "kinetica"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -403,13 +400,13 @@ fn a_jwt_bearer_assertion_is_signed_and_says_who_it_is() {
     let auth = auth(&[
         (options::OAUTH_GRANT, "jwt-bearer"),
         (
-            "adbc.kinetica.oauth.token_url",
+            "kinetica.oauth.token_url",
             &format!("{}/token", provider.url),
         ),
-        ("adbc.kinetica.oauth.client_id", "a-service"),
-        ("adbc.kinetica.oauth.private_key", test_key()),
-        ("adbc.kinetica.oauth.key_id", "the-key"),
-        ("adbc.kinetica.oauth.audience", "kinetica"),
+        ("kinetica.oauth.client_id", "a-service"),
+        ("kinetica.oauth.private_key", test_key()),
+        ("kinetica.oauth.key_id", "the-key"),
+        ("kinetica.oauth.audience", "kinetica"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -438,9 +435,9 @@ fn a_jwt_bearer_assertion_is_signed_and_says_who_it_is() {
 fn a_key_that_cannot_be_read_is_reported_rather_than_sent() {
     let auth = auth(&[
         (options::OAUTH_GRANT, "jwt-bearer"),
-        ("adbc.kinetica.oauth.token_url", "http://127.0.0.1:1/token"),
-        ("adbc.kinetica.oauth.client_id", "a-service"),
-        ("adbc.kinetica.oauth.private_key", "not a key at all"),
+        ("kinetica.oauth.token_url", "http://127.0.0.1:1/token"),
+        ("kinetica.oauth.client_id", "a-service"),
+        ("kinetica.oauth.private_key", "not a key at all"),
     ]);
 
     let error = auth
@@ -459,8 +456,8 @@ fn a_provider_that_cannot_be_reached_is_reported_with_the_flow_that_failed() {
     let auth = auth(&[
         (options::OAUTH_GRANT, "client_credentials"),
         // Port 1 is not something that answers.
-        ("adbc.kinetica.oauth.token_url", "http://127.0.0.1:1/token"),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.token_url", "http://127.0.0.1:1/token"),
+        ("kinetica.oauth.client_id", "analytics"),
     ]);
 
     let error = auth
@@ -481,10 +478,10 @@ fn one_token_is_shared_by_everything_that_would_have_asked_for_it() {
     let options_set = [
         (options::OAUTH_GRANT, "client_credentials"),
         (
-            "adbc.kinetica.oauth.token_url",
+            "kinetica.oauth.token_url",
             &format!("{}/token", provider.url),
         ),
-        ("adbc.kinetica.oauth.client_id", "shared-identity"),
+        ("kinetica.oauth.client_id", "shared-identity"),
     ];
 
     // The cache left on this time, which is the default.
@@ -554,11 +551,11 @@ fn a_vendors_own_parameters_become_the_ones_the_flow_sends() {
         (options::OAUTH_GRANT, "client_credentials"),
         // Where login.microsoftonline.com would be, so that what the vendor
         // assembles is something this test can answer.
-        ("adbc.kinetica.oauth.authority_host", &provider.url),
-        ("adbc.kinetica.oauth.tenant_id", "a-tenant"),
-        ("adbc.kinetica.oauth.application_id_uri", "api://kinetica"),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
-        ("adbc.kinetica.oauth.client_secret", "a-secret"),
+        ("kinetica.oauth.authority_host", &provider.url),
+        ("kinetica.oauth.tenant_id", "a-tenant"),
+        ("kinetica.oauth.application_id_uri", "api://kinetica"),
+        ("kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.client_secret", "a-secret"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -587,10 +584,10 @@ fn a_vendor_does_not_have_to_be_named_to_be_used() {
     let auth = auth(&[
         (options::AUTH_METHOD, "oauth"),
         (options::OAUTH_GRANT, "client_credentials"),
-        ("adbc.kinetica.oauth.authority_host", &provider.url),
-        ("adbc.kinetica.oauth.tenant_id", "a-tenant"),
-        ("adbc.kinetica.oauth.resource", "api://kinetica"),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.authority_host", &provider.url),
+        ("kinetica.oauth.tenant_id", "a-tenant"),
+        ("kinetica.oauth.resource", "api://kinetica"),
+        ("kinetica.oauth.client_id", "analytics"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -616,10 +613,10 @@ fn an_issuer_said_outright_wins_over_the_one_a_vendor_would_assemble() {
         (options::AUTH_METHOD, "oauth"),
         (options::AUTH_PROVIDER, "entra"),
         (options::OAUTH_GRANT, "client_credentials"),
-        ("adbc.kinetica.oauth.tenant_id", "a-tenant"),
-        ("adbc.kinetica.oauth.issuer", &provider.url),
-        ("adbc.kinetica.oauth.scope", "kinetica.read"),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.tenant_id", "a-tenant"),
+        ("kinetica.oauth.issuer", &provider.url),
+        ("kinetica.oauth.scope", "kinetica.read"),
+        ("kinetica.oauth.client_id", "analytics"),
     ]);
 
     let token = auth.bearer().expect("a token").expect("a token").token;
@@ -641,8 +638,8 @@ fn a_token_from_a_flow_says_who_holds_it() {
         (options::AUTH_METHOD, "oauth"),
         (options::AUTH_PROVIDER, "entra"),
         (options::OAUTH_GRANT, "client_credentials"),
-        ("adbc.kinetica.oauth.issuer", &provider.url),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.issuer", &provider.url),
+        ("kinetica.oauth.client_id", "analytics"),
     ]);
 
     let held = auth.bearer().expect("a token").expect("a token");
@@ -663,8 +660,8 @@ fn a_caller_can_name_the_claim_a_vendor_would_have_chosen_for_it() {
         (options::AUTH_PROVIDER, "entra"),
         (options::TOKEN_NAME_CLAIM, "sub"),
         (options::OAUTH_GRANT, "client_credentials"),
-        ("adbc.kinetica.oauth.issuer", &provider.url),
-        ("adbc.kinetica.oauth.client_id", "analytics"),
+        ("kinetica.oauth.issuer", &provider.url),
+        ("kinetica.oauth.client_id", "analytics"),
     ]);
 
     let held = auth.bearer().expect("a token").expect("a token");
@@ -681,7 +678,7 @@ fn a_command_of_the_callers_own_produces_the_token() {
     let auth = auth(&[
         (options::AUTH_METHOD, "oauth"),
         (options::AUTH_PROVIDER, "command"),
-        ("adbc.kinetica.oauth.command", &format!("echo {CLAIMED}")),
+        ("kinetica.oauth.command", &format!("echo {CLAIMED}")),
     ]);
 
     let held = auth.bearer().expect("a token").expect("a token");
@@ -700,7 +697,7 @@ fn a_command_that_fails_is_reported_with_what_it_complained_about() {
         (options::AUTH_METHOD, "oauth"),
         (options::AUTH_PROVIDER, "command"),
         (
-            "adbc.kinetica.oauth.command",
+            "kinetica.oauth.command",
             // Under cmd.exe, which runs it on Windows, commands are separated
             // with & (where sh would run the first in the background), and
             // quotes are printed rather than taken away
@@ -744,10 +741,10 @@ fn against(provider: &Provider, client_id: &str) -> Auth {
     for (name, value) in [
         (options::OAUTH_GRANT, "client_credentials"),
         (
-            "adbc.kinetica.oauth.token_url",
+            "kinetica.oauth.token_url",
             &format!("{}/token", provider.url),
         ),
-        ("adbc.kinetica.oauth.client_id", client_id),
+        ("kinetica.oauth.client_id", client_id),
     ] {
         auth.set(name, value).expect("the option is accepted");
     }

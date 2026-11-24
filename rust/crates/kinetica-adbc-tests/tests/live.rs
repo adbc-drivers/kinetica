@@ -125,11 +125,16 @@ fn maps_every_column_type() {
     assert_eq!(types[8], "Date32");
     assert_eq!(types[10], "Boolean");
 
-    // The properties are what let a consumer recreate a column Arrow cannot name.
+    // The type is named as SQL writes it, and the properties are what let a
+    // consumer recreate a column Arrow cannot name.
     let metadata = schema.field(5).metadata();
     assert_eq!(
-        metadata.get("kinetica.type").map(String::as_str),
-        Some("char32")
+        metadata.get("KINETICA:type").map(String::as_str),
+        Some("VARCHAR(32)")
+    );
+    assert_eq!(
+        metadata.get("KINETICA:properties").map(String::as_str),
+        Some("char32,nullable")
     );
 
     let rows: usize = reader.map(|b| b.expect("batch").num_rows()).sum();
@@ -194,8 +199,8 @@ fn describes_a_table_without_reading_it() {
     let ulong = schema.field_with_name("c_ulong").expect("column");
     assert_eq!(ulong.data_type().to_string(), "UInt64");
     assert_eq!(
-        ulong.metadata().get("kinetica.type").map(String::as_str),
-        Some("ulong")
+        ulong.metadata().get("KINETICA:type").map(String::as_str),
+        Some("UNSIGNED BIGINT")
     );
 }
 
@@ -541,7 +546,7 @@ fn partitions_cover_the_result_exactly_once() {
 
     statement
         .set_option(
-            OptionStatement::Other("adbc.kinetica.batch_size".into()),
+            OptionStatement::Other("kinetica.query.batch_size".into()),
             OptionValue::Int(1_000),
         )
         .expect("batch size");
@@ -1176,8 +1181,8 @@ fn the_counts_are_there_to_be_read_after_a_run() {
     .expect("ddl");
     ddl.execute_update().expect("create");
 
-    let affected = OptionStatement::Other("adbc.kinetica.count_affected".into());
-    let total = OptionStatement::Other("adbc.kinetica.total_number_of_records".into());
+    let affected = OptionStatement::Other("kinetica.count_affected".into());
+    let total = OptionStatement::Other("kinetica.total_number_of_records".into());
 
     // A query knows how big its whole result is, and changed nothing.
     let mut query = connection.new_statement().expect("statement");
@@ -1210,7 +1215,7 @@ fn the_counts_are_there_to_be_read_after_a_run() {
 
     // An unknown option is still refused rather than answered with a count.
     assert!(update
-        .get_option_int(OptionStatement::Other("adbc.kinetica.nonsense".into()))
+        .get_option_int(OptionStatement::Other("kinetica.nonsense".into()))
         .is_err());
 }
 
@@ -1696,7 +1701,7 @@ fn a_paged_read_sees_the_result_it_started_with() {
     let mut statement = connection.new_statement().expect("statement");
     statement
         .set_option(
-            OptionStatement::Other("adbc.kinetica.batch_size".into()),
+            OptionStatement::Other("kinetica.query.batch_size".into()),
             OptionValue::Int(5_000),
         )
         .expect("batch size");
@@ -1762,7 +1767,7 @@ fn a_finished_read_lets_go_of_what_the_server_kept() {
 
         statement
             .set_option(
-                adbc_core::options::OptionStatement::Other("adbc.kinetica.batch_size".into()),
+                adbc_core::options::OptionStatement::Other("kinetica.query.batch_size".into()),
                 OptionValue::Int(100),
             )
             .expect("batch size");
@@ -1940,7 +1945,7 @@ fn several_rows_page_through_each_result_and_let_go_of_all_of_them() {
         // Smaller than one group, so every run takes more than one page.
         statement
             .set_option(
-                OptionStatement::Other("adbc.kinetica.batch_size".into()),
+                OptionStatement::Other("kinetica.query.batch_size".into()),
                 OptionValue::Int(5_000),
             )
             .expect("batch size");
@@ -1964,7 +1969,7 @@ fn several_rows_page_through_each_result_and_let_go_of_all_of_them() {
         assert_eq!(
             statement
                 .get_option_int(OptionStatement::Other(
-                    "adbc.kinetica.total_number_of_records".into()
+                    "kinetica.total_number_of_records".into()
                 ))
                 .expect("total"),
             3 * 7_143,
@@ -1999,7 +2004,7 @@ fn a_row_cap_spans_the_runs_and_stops_them() {
         .expect("query");
     statement
         .set_option(
-            OptionStatement::Other("adbc.kinetica.max_rows".into()),
+            OptionStatement::Other("kinetica.query.max_rows".into()),
             OptionValue::Int(10_000),
         )
         .expect("max rows");
@@ -2014,7 +2019,7 @@ fn a_row_cap_spans_the_runs_and_stops_them() {
     assert_eq!(
         statement
             .get_option_int(OptionStatement::Other(
-                "adbc.kinetica.total_number_of_records".into()
+                "kinetica.total_number_of_records".into()
             ))
             .expect("total"),
         2 * 7_143

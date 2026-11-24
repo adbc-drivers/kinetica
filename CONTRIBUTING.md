@@ -87,7 +87,11 @@ With it running, the [validation suite](https://github.com/adbc-drivers/validati
 in `rust/validation/` checks the driver the way every Foundry driver is checked,
 and its results fill in the docs page, `rust/docs/kinetica.md`.  It finds the
 database through `KI_URL`, `KI_USER` and `KI_PWD`, which `rust/.env.linux` sets
-for this instance:
+for this instance.  It signs in as `KI_VALIDATION_USER` / `KI_VALIDATION_PWD`
+when those are set, as `rust/.env.linux` sets them: an ordinary user that it
+creates as `KI_USER` and grants only the two schemas it uses, so that nothing
+the driver does relies on what only an administrator may read.  Unset, it
+signs in as `KI_USER`.
 
 ```shell
 $ cd rust/
@@ -99,7 +103,9 @@ $ pixi run gendocs --output generated
 
 Where Kinetica differs from the suite's standard cases (its type names, its
 date range of 1000 to 2900, its millisecond times), `rust/validation/queries/`
-holds Kinetica's version of the case, with the reason in its metadata.
+holds Kinetica's version of the case, with the reason in its metadata.  A case
+whose only difference is the type name, which the driver reports under
+`KINETICA:type` as Kinetica's SQL writes it, holds just a `field-type-name`.
 
 ## Opening a Pull Request
 

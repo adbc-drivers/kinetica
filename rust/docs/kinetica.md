@@ -63,7 +63,26 @@ Note: The example above is for Python using the
 [adbc-driver-manager](https://pypi.org/project/adbc-driver-manager) package but
 the process will be similar for other driver managers.
 
-Kinetica-specific options are named `adbc.kinetica.*`.
+The `uri` may also be a `kinetica://` URI, by which a driver manager given
+only the URI knows to load this driver:
+
+```text
+kinetica://[user[:password]@]host[:port][,host[:port]...][/path][?name=value&...]
+```
+
+It connects over HTTPS unless it says `tls=false`. Every other parameter is
+an option under its own name, such as `kinetica.query.max_rows=1000`, and an
+option set directly takes precedence over the URI's. Several hosts are an HA
+ring, tried in the order given.
+
+```python
+conn = dbapi.connect(
+    "kinetica://localhost:9191?tls=false",
+    db_kwargs={"username": "admin", "password": "..."},
+)
+```
+
+Kinetica's own options are named `kinetica.*`; see [Options](#options).
 
 ## Feature & Type Support
 
@@ -72,6 +91,452 @@ Kinetica-specific options are named `adbc.kinetica.*`.
 ### Types
 
 {{ types|safe }}
+
+## Options
+
+Options are set on the database, a connection or a statement, as each says
+below.  Any option set on the database can also be given as a parameter of a
+`kinetica://` URI, under the same name; one set directly takes precedence.  A
+boolean takes `true` or `false`.
+
+### Connection Options
+
+`kinetica.session_id`
+: **Type:** string. **Default:** (empty)
+
+  The server session whose SQL `#name` temp tables a connection uses.  Connections given the same session share its temp tables, and the caller drops it when done, with Kinetica's `/drop/session`.  Empty gives each connection a session of its own, dropped when the connection closes.
+
+  Set on the database.
+
+`kinetica.impersonate_user`
+: **Type:** string. **Default:** (empty)
+
+  The user each connection acts as from the start, which the server reads as impersonation.  `SET USER` and `EXECUTE AS USER` step into another user from there, and `REVERT` comes back to this one.
+
+  Set on the database.
+
+`kinetica.fake_transactions`
+: **Type:** boolean. **Default:** `false`
+
+  Accept the transaction calls, such as turning autocommit off, and do nothing, rather than refuse them.  Kinetica has no transactions, so a rollback undoes nothing either way; this decides whether a caller is told.
+
+  Set on the database or a connection.
+
+`kinetica.replication`
+: **Values:** `sync`, `sync_parallel`, `async`, `async_parallel`, `none`. **Default:** (the server's)
+
+  How far a write must have replicated across an HA ring before the server answers.  The server's own spellings, such as `REPL_SYNC`, are accepted too.
+
+  Set on the database.
+
+`kinetica.no_sync`
+: **Type:** boolean. **Default:** `false`
+
+  Shorthand for a `kinetica.replication` of `none`.  `kinetica.replication` wins where both are given.
+
+  Set on the database.
+
+`kinetica.primary_url`
+: **Type:** string. **Default:** the first address of the URI
+
+  The cluster that failover returns to once it is reachable again.
+
+  Set on the database.
+
+`kinetica.failover`
+: **Type:** boolean. **Default:** `true`
+
+  Fail over to another cluster of the HA ring when one fails.
+
+  Set on the database.
+
+`kinetica.failover_order`
+: **Values:** `sequential`, `random`. **Default:** `sequential`
+
+  The order the clusters of the ring are tried in when one fails.
+
+  Set on the database.
+
+`kinetica.auto_discovery`
+: **Type:** boolean. **Default:** `true`
+
+  Discover the rest of the HA ring from the cluster first reached.  Off, only the addresses the URI gives are used.
+
+  Set on the database.
+
+`kinetica.failback_poll_interval`
+: **Type:** integer. **Default:** `5`
+
+  Seconds between polls of the primary cluster, which is how a connection that failed away from it comes back.
+
+  Set on the database.
+
+`kinetica.hostname_regex`
+: **Type:** string. **Default:** (empty)
+
+  A regular expression choosing which of a worker's addresses to use where it publishes more than one.  Bulk ingest goes to the addresses it keeps.
+
+  Set on the database.
+
+`kinetica.request_timeout`
+: **Type:** integer. **Default:** `0`
+
+  Seconds a request may take before it is abandoned; `0` for no limit.
+
+  Set on the database.
+
+`kinetica.connect_timeout`
+: **Type:** integer. **Default:** `5`
+
+  Seconds to wait for the server to answer.
+
+  Set on the database.
+
+`kinetica.initial_connect_timeout`
+: **Type:** integer. **Default:** `0`
+
+  Seconds to spend reaching a cluster for the first time before trying the next.
+
+  Set on the database.
+
+`kinetica.max_retries`
+: **Type:** integer. **Default:** `5`
+
+  How many times a request is sent again: one that failed on the wire, or one a cluster that is just back online refused while it was still starting.
+
+  Set on the database.
+
+`kinetica.snappy`
+: **Type:** boolean. **Default:** `true`
+
+  Compress bulk record requests with Snappy.
+
+  Set on the database.
+
+`kinetica.trust_store_path`
+: **Type:** string. **Default:** (empty)
+
+  The trust store holding the certificate authority that signed the server's certificate, for an `https` connection.
+
+  Set on the database.
+
+`kinetica.trust_store_password`
+: **Type:** string. **Default:** (empty)
+
+  The trust store's password.  It can be set but not read back.
+
+  Set on the database.
+
+`kinetica.bypass_ssl_cert_check`
+: **Type:** boolean. **Default:** `false`
+
+  Accept the server's certificate without checking it.  Prefer a trust store wherever the certificate can be trusted.
+
+  Set on the database.
+
+`kinetica.log_level`
+: **Values:** `off`, `error`, `warn`, `info`, `debug`, `trace`. **Default:** `off`
+
+  How much the driver logs.  A host program that has installed a logger of its own keeps it.
+
+  Set on the database.
+
+`kinetica.log_path`
+: **Type:** string. **Default:** (empty)
+
+  The file the log is appended to.  Empty writes to standard error.
+
+  Set on the database.
+
+### Authentication Options
+
+`kinetica.auth_method`
+: **Values:** `password`, `oauth`. **Default:** `password`
+
+  How the connection signs in: with `username` and `password`, or with an OAuth bearer token.
+
+  Set on the database.
+
+`kinetica.oauth_token`
+: **Type:** string. **Default:** (empty)
+
+  A bearer token the caller already holds, presented as it is.  The driver does not acquire one.
+
+  Set on the database.
+
+`kinetica.oauth_grant`
+: **Values:** `client_credentials`, `authorization_code`, `device_code`, `refresh_token`, `token-exchange`, `jwt-bearer`. **Default:** (none)
+
+  How the driver acquires a bearer token, when the caller does not hold one.  Each grant's URN, as its RFC names it, is accepted too.
+
+  Set on the database.
+
+`kinetica.auth_provider`
+: **Values:** `entra`, `okta`, `command`. **Default:** (none)
+
+  An identity provider whose own parameters the driver turns into the generic ones (`entra`, `okta`), or `command`, which runs `kinetica.oauth.command` and takes what it prints as the token.  The command runs under `sh -c`, or `cmd.exe /c` on Windows, with the privileges of the process holding the connection, so it must never come from untrusted input.
+
+  `entra` and `okta` are each implied by a parameter only they read (`kinetica.oauth.tenant_id`, `kinetica.oauth.application_id_uri`, `kinetica.oauth.okta_domain`), so naming one is an override rather than a requirement.
+
+  Set on the database.
+
+`kinetica.token_name_claim`
+: **Type:** string. **Default:** `sub` (`preferred_username` under `entra`)
+
+  The claim of a bearer token the user name is read from.  The name a token gives takes precedence over `username`.
+
+  Set on the database.
+
+`kinetica.oauth_token_cache`
+: **Values:** `memory`, `none`. **Default:** `memory`
+
+  `memory` shares one token between every connection of the process that would ask for the same one; `none` signs in for each connection.
+
+  Set on the database.
+
+`kinetica.oauth.<name>`
+: **Type:** string.
+
+  What an OAuth flow needs: `issuer`, `token_url`, `authorize_url`, `device_url`, `client_id`, `client_secret`, `scope`, `audience`, `subject`, `refresh_token`, `subject_token`, `subject_token_type`, `private_key`, `private_key_file`, `key_id` and `algorithm`.  Given an issuer and nothing else, the endpoints are read from its OpenID Connect discovery document.
+
+  A provider's own parameters are named the same way: `command` and `command_timeout_seconds` (default `60`) for `command`; `tenant_id`, `application_id_uri` (or `resource`) and `authority_host` for `entra`; `okta_domain` and `auth_server_id` for `okta`.
+
+  Set on the database.
+
+### Query Options
+
+`kinetica.query.batch_size`
+: **Type:** integer. **Default:** `20000`
+
+  Rows requested from the server per page of a result, capped at the server's own limit.
+
+  Set on a statement.
+
+`kinetica.query.max_rows`
+: **Type:** integer. **Default:** (none)
+
+  The most rows a read hands back, however many the result holds.  Unset or negative hands back all of them.
+
+  Set on the database, a connection or a statement; the statement's own wins.
+
+`kinetica.query.use_key_lookup`
+: **Type:** boolean. **Default:** `false`
+
+  Send a read that pins every key column of a table to the rank holding its row, rather than to the SQL engine.  The rows are the same either way; `kinetica.key_lookup` says which way the last read went.
+
+  Set on the database, a connection or a statement; the statement's own wins.
+
+These are sent with every statement, but only when set, so an unset one
+leaves the server's own default in place.
+
+`kinetica.query.cost_based_optimization`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether the planner costs its alternatives.
+
+  Set on the database or a connection.
+
+`kinetica.query.rule_based_optimization`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether the rule-based rewrites run.
+
+  Set on the database or a connection.
+
+`kinetica.query.ssq_optimization`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether scalar subqueries are optimized.
+
+  Set on the database or a connection.
+
+`kinetica.query.distributed_operations`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether data may be resharded or replicated among the ranks, so that a join, a set operation or an intermediate result over data not already distributed compatibly can run.  Off, such a query fails.
+
+  Set on the database or a connection.
+
+`kinetica.query.parallel_execution`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether the steps of a plan may run at once.
+
+  Set on the database or a connection.
+
+`kinetica.query.plan_cache`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether a plan already worked out may be reused.
+
+  Set on the database or a connection.
+
+`kinetica.query.results_caching`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether a result already worked out may be reused.
+
+  Set on the database or a connection.
+
+`kinetica.query.ignore_existing_pk`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether a row whose primary key is already in the table is passed over rather than refused.
+
+  Set on the database or a connection.
+
+`kinetica.query.update_on_existing_pk`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether such a row replaces the one already in the table.
+
+  Set on the database or a connection.
+
+`kinetica.query.validate_change_column`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether a column being changed is checked first.
+
+  Set on the database or a connection.
+
+`kinetica.query.use_approx_count_distinct`
+: **Type:** boolean. **Default:** (the server's)
+
+  Whether distinct values may be counted approximately.
+
+  Set on the database or a connection.
+
+`kinetica.query.ttl`
+: **Type:** integer. **Default:** (the server's)
+
+  Minutes to keep what a statement makes.
+
+  Set on the database or a connection.
+
+`kinetica.query.paging_table_ttl`
+: **Type:** integer. **Default:** `20`
+
+  Minutes the server keeps the result a paged read works through.  The driver clears it as soon as the read is done, so this only matters for a read left unfinished.
+
+  Set on the database or a connection.
+
+### Ingest Options
+
+`kinetica.ingest.error_mode`
+: **Values:** `abort`, `skip`, `permissive`. **Default:** `abort`
+
+  What to do about a row the workers cannot take: `abort` fails the batch it is in; `skip` takes the rest of the batch without it; `permissive` takes the rest and asks the server to say what was wrong with each row it refused.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.truncate_strings`
+: **Type:** boolean. **Default:** `false`
+
+  Cut a string too long for its column to fit, rather than refusing it.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.rows_per_insertion`
+: **Type:** integer. **Default:** `50000`
+
+  Rows sent to a worker at a time.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.multihead_insert`
+: **Type:** boolean. **Default:** `true`
+
+  Send rows straight to the worker ranks that hold them.  Off, they go through the head rank.
+
+  Set on the database or a connection.
+
+The options below read a local file loaded by
+`INSERT INTO t SELECT * FROM FILE."data.csv"`.  A statement can also give each
+in its own `WITH OPTIONS (...)`, as `file read` and the option's last part
+(`file read limit = 100`), which beats the connection's.
+
+`kinetica.ingest.file.delimiter`
+: **Type:** string. **Default:** (from the file's extension)
+
+  The field separator.  Unset, it is `|` for `.psv`, a tab for `.tsv`, and otherwise a comma.  A tab may be written `\t`.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.quote_char`
+: **Type:** string. **Default:** `"`
+
+  The quote character.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.escape_char`
+: **Type:** string. **Default:** (none)
+
+  The escape character.  Unset, a quote is escaped by doubling it.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.comment_char`
+: **Type:** string. **Default:** (none)
+
+  A line starting with this is skipped.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.has_header`
+: **Type:** boolean. **Default:** `true`
+
+  Whether the first line names the columns.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.null_string`
+: **Type:** string. **Default:** (none)
+
+  The text that stands for a null.  Unset, an empty field is null.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.skip`
+: **Type:** integer. **Default:** `0`
+
+  Rows to pass over at the start of each file, after its header.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.limit`
+: **Type:** integer. **Default:** (none)
+
+  The most rows to read across every file matched.
+
+  Set on the database or a connection.
+
+`kinetica.ingest.file.initial_clear`
+: **Type:** boolean. **Default:** `false`
+
+  Empty the table before loading the file into it.
+
+  Set on the database or a connection.
+
+### Statement Results
+
+These are read from a statement with `get_option_int` after it runs, since the
+ADBC C API has no room for them on a call that also returns a reader.
+
+`kinetica.count_affected`
+: **Type:** integer.
+
+  Rows the last statement changed, or `-1` if it was a query.
+
+`kinetica.total_number_of_records`
+: **Type:** integer.
+
+  Rows the last statement's whole result holds, however many have been read so far, or `-1` if it produced no result.  A query bound to several rows of parameters runs once for each, and this adds up the runs made so far.  Also read as the standard max-progress option.
+
+`kinetica.key_lookup`
+: **Type:** integer.
+
+  `1` if the last read was answered by the rank holding its row, `0` if it went through the SQL engine.
 
 ## Compatibility
 

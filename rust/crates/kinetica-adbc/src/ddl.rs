@@ -28,9 +28,13 @@ use crate::error::unsupported;
 /// The metadata key Arrow carries an extension type's name under.
 const EXTENSION: &str = "ARROW:extension:name";
 
-/// The metadata key the server describes a column's properties under, which
-/// says what Arrow cannot: how wide a string is, and what a number means.
-const PROPERTIES: &str = "kinetica.properties";
+/// The metadata key a column's properties are described under, which says
+/// what Arrow cannot: how wide a string is, and what a number means.
+const PROPERTIES: &str = crate::metadata::PROPERTIES;
+
+/// The same, as the server names it, for Arrow that did not come through
+/// this driver.
+const SERVER_PROPERTIES: &str = "kinetica.properties";
 
 /// @return The statement that makes the table, or None for a mode that expects
 ///         it to be there already
@@ -127,7 +131,10 @@ fn column_type(field: &Field) -> AdbcResult<String> {
 
 /// @return The column type the server's own properties call for, if they say
 fn from_properties(field: &Field) -> Option<String> {
-    let properties = field.metadata().get(PROPERTIES)?;
+    let properties = field
+        .metadata()
+        .get(PROPERTIES)
+        .or_else(|| field.metadata().get(SERVER_PROPERTIES))?;
 
     for property in properties.split(',') {
         let property = property.trim();
@@ -146,6 +153,70 @@ fn from_properties(field: &Field) -> Option<String> {
     }
 
     None
+}
+
+/// Names a column's type as Kinetica's SQL writes it, from the type and the
+/// properties the server describes it with: `char16` is `VARCHAR(16)`, and
+/// `array` with the property `array(int,3)` is `INTEGER[3]`.
+/// @return The SQL type name
+pub(crate) fn sql_type_name(kinetica_type: &str, properties: &str) -> String {
+    // A sized or element-typed column says the rest in its properties.
+    let property = |prefix: &str| {
+        properties
+            .split(',')
+            .map(str::trim)
+            .find(|p| p.starts_with(prefix))
+            .map(str::to_string)
+    };
+
+    match kinetica_type.trim() {
+        "int8" => "TINYINT".into(),
+        "int16" => "SMALLINT".into(),
+        "int" => "INTEGER".into(),
+        "long" => "BIGINT".into(),
+        "ulong" => "UNSIGNED BIGINT".into(),
+        "float" => "REAL".into(),
+        "double" => "DOUBLE".into(),
+        "boolean" => "BOOLEAN".into(),
+        "string" => "VARCHAR".into(),
+        "date" => "DATE".into(),
+        "time" => "TIME".into(),
+        "datetime" => "DATETIME".into(),
+        "timestamp" => "TIMESTAMP".into(),
+        "bytes" => "BLOB".into(),
+        "json" => "JSON".into(),
+        "uuid" => "UUID".into(),
+        "geometry" => "GEOMETRY".into(),
+        "ipv4" => "IPV4".into(),
+        "vector" => match property("vector(") {
+            Some(sized) => sized.to_uppercase(),
+            None => "VECTOR".into(),
+        },
+        // An array's properties carry its element type and its size, in
+        // one property that itself holds a comma: array(int,3).
+        "array" => match properties.find("array(") {
+            Some(start) => {
+                let inner = &properties[start + "array(".len()..];
+                let inner = inner.split(')').next().unwrap_or_default();
+                let mut parts = inner.split(',').map(str::trim);
+                let element = sql_type_name(parts.next().unwrap_or_default(), "");
+                let size = parts.next().unwrap_or_default();
+                format!("{element}[{size}]")
+            }
+            None => "ARRAY".into(),
+        },
+        other => {
+            if let Some(width) = other.strip_prefix("char") {
+                if width.chars().all(|c| c.is_ascii_digit()) && !width.is_empty() {
+                    return format!("VARCHAR({width})");
+                }
+            }
+
+            // decimal(10,2) and anything not named above are written as the
+            // server gives them.
+            other.to_uppercase()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -249,6 +320,54 @@ mod tests {
                 "{name} should map to {expected}, got {sql}"
             );
         }
+    }
+
+    #[test]
+    fn a_column_is_named_as_kinetica_sql_writes_it() {
+        for (kinetica_type, properties, expected) in [
+            ("int8", "int8", "TINYINT"),
+            ("int16", "int16", "SMALLINT"),
+            ("int", "", "INTEGER"),
+            ("long", "", "BIGINT"),
+            ("ulong", "ulong", "UNSIGNED BIGINT"),
+            ("float", "", "REAL"),
+            ("double", "", "DOUBLE"),
+            ("decimal(10,2)", "decimal(10,2),nullable", "DECIMAL(10,2)"),
+            ("boolean", "boolean", "BOOLEAN"),
+            ("string", "nullable", "VARCHAR"),
+            ("char16", "char16,nullable", "VARCHAR(16)"),
+            ("date", "date", "DATE"),
+            ("time", "time", "TIME"),
+            ("datetime", "datetime", "DATETIME"),
+            ("timestamp", "timestamp", "TIMESTAMP"),
+            ("bytes", "", "BLOB"),
+            ("json", "json", "JSON"),
+            ("uuid", "uuid", "UUID"),
+            ("geometry", "wkt", "GEOMETRY"),
+            ("ipv4", "ipv4", "IPV4"),
+            ("vector", "vector(3),nullable", "VECTOR(3)"),
+            ("array", "array(int,3),nullable", "INTEGER[3]"),
+        ] {
+            assert_eq!(
+                sql_type_name(kinetica_type, properties),
+                expected,
+                "{kinetica_type} with {properties}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_properties_are_read_under_the_servers_own_key_too() {
+        let schema = one(
+            "c",
+            DataType::Utf8,
+            &[(SERVER_PROPERTIES, "char16,nullable")],
+        );
+        let sql = create("t", &schema, IngestMode::Create)
+            .expect("create")
+            .expect("some");
+
+        assert!(sql.contains("CHAR(16)"), "{sql}");
     }
 
     #[test]

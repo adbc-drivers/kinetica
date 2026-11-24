@@ -164,7 +164,7 @@ fn closing_a_connection_drops_its_temp_tables() {
     ignore = "set KI_URL, KI_USER and KI_PWD to run against a Kinetica"
 )]
 fn a_named_session_is_shared_and_left_to_the_caller() {
-    // What adbc.kinetica.session_id is for: connections that share temp
+    // What kinetica.session_id is for: connections that share temp
     // tables, and a session the caller drops itself.
     let suffix = unique_suffix();
     let session_id = format!("adbc-{suffix}");

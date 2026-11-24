@@ -15,6 +15,8 @@
 //! The database: where a connection's address and credentials are held until
 //! one is opened.
 
+use std::collections::HashSet;
+
 use adbc_core::error::Result as AdbcResult;
 use adbc_core::options::{OptionConnection, OptionDatabase, OptionValue};
 use adbc_core::sync::Database;
@@ -24,9 +26,10 @@ use gpudb_api::{Kinetica, KineticaOptions, KineticaVersion};
 
 use crate::connection::KineticaConnection;
 use crate::context::{self, Context};
-use crate::error::{not_found, to_adbc, unsupported, unsupported_server};
+use crate::error::{could_not, not_found, unsupported, unsupported_server};
 use crate::runtime;
 use crate::settings::{self, Settings};
+use crate::uri;
 
 /// What the server records as the client that sent a request, which is how a
 /// log tells this driver from the others.
@@ -56,6 +59,9 @@ pub struct KineticaDatabase {
     /// options to put on a statement, and the cap on a read -- which each one
     /// can then change for itself.
     context: Context,
+    /// The options set here directly, which beat what a `kinetica://` URI
+    /// says of them.
+    said: HashSet<String>,
 }
 
 /// The first Kinetica version that supports Arrow encoding
@@ -87,8 +93,15 @@ impl Optionable for KineticaDatabase {
             _ => return Err(unsupported("only string database options are supported")),
         };
 
+        let name = key.as_ref().to_string();
+
         match key {
-            OptionDatabase::Uri => self.uri = text,
+            OptionDatabase::Uri => {
+                // Its form is checked now; what it says is applied when a
+                // connection opens, under whatever was set directly by then.
+                uri::parse(&text)?;
+                self.uri = text;
+            }
             OptionDatabase::Username => self.username = text,
             OptionDatabase::Password => self.password = text,
             OptionDatabase::Other(ref name) if name == crate::options::FAKE_TRANSACTIONS => {
@@ -112,6 +125,8 @@ impl Optionable for KineticaDatabase {
             OptionDatabase::Other(ref name) if self.context.query.set(name, &text)? => {}
             other => return Err(unsupported(&format!("database option {}", other.as_ref()))),
         }
+
+        self.said.insert(name);
 
         Ok(())
     }
@@ -165,6 +180,49 @@ impl Database for KineticaDatabase {
     type ConnectionType = KineticaConnection;
 
     fn new_connection(&self) -> AdbcResult<Self::ConnectionType> {
+        self.resolved()?.connect()
+    }
+
+    fn new_connection_with_opts(
+        &self,
+        opts: impl IntoIterator<Item = (OptionConnection, OptionValue)>,
+    ) -> AdbcResult<Self::ConnectionType> {
+        let mut connection = self.new_connection()?;
+
+        for (key, value) in opts {
+            connection.set_option(key, value)?;
+        }
+
+        Ok(connection)
+    }
+}
+
+impl KineticaDatabase {
+    /// @return This database as a `kinetica://` URI fills it in: the URLs
+    ///     it names, and the options it gives that were not set directly
+    fn resolved(&self) -> AdbcResult<Self> {
+        let mut database = self.clone();
+
+        let Some(said) = uri::parse(&self.uri)? else {
+            return Ok(database);
+        };
+
+        database.uri = said.urls;
+
+        for (name, value) in said.options {
+            if !self.said.contains(&name) {
+                database.set_option(
+                    OptionDatabase::from(name.as_str()),
+                    OptionValue::String(value),
+                )?;
+            }
+        }
+
+        Ok(database)
+    }
+
+    /// Opens a connection to what the URI names, as is.
+    fn connect(&self) -> AdbcResult<KineticaConnection> {
         // One address or a whole ring, comma-separated; the client tries them
         // in the order they were given.
         let addresses = settings::urls(&self.uri);
@@ -178,8 +236,9 @@ impl Database for KineticaDatabase {
             .set_primary_url(addresses.first().cloned().unwrap_or_default())
             .set_username(self.username.clone())
             .set_password(self.password.clone())
-            // The release version, as `get_info` reports it, without the
-            // build number, as the Rust API's own `User-Agent` entry has it.
+            // The release version, as `get_info` reports it: the build number
+            // tells two builds of one release apart, which the debug log
+            // needs and the server does not.
             .set_client_info(Some(CLIENT_NAME), Some(crate::VERSION));
 
         // Said after the three above, so that a caller naming a primary
@@ -201,7 +260,8 @@ impl Database for KineticaDatabase {
             options.set_session_id(Some(&self.session_id));
         }
 
-        let client = runtime::block_on(Kinetica::new(addresses, options)).map_err(to_adbc)?;
+        let client =
+            runtime::block_on(Kinetica::new(addresses, options)).map_err(could_not("connect"))?;
 
         // Error out if the server doesn't support Arrow encoding.
         let url = client.url().map(|url| url.to_string()).unwrap_or_default();
@@ -223,19 +283,6 @@ impl Database for KineticaDatabase {
             self.context.clone(),
             &self.impersonate_user,
         )
-    }
-
-    fn new_connection_with_opts(
-        &self,
-        opts: impl IntoIterator<Item = (OptionConnection, OptionValue)>,
-    ) -> AdbcResult<Self::ConnectionType> {
-        let mut connection = self.new_connection()?;
-
-        for (key, value) in opts {
-            connection.set_option(key, value)?;
-        }
-
-        Ok(connection)
     }
 }
 
@@ -295,5 +342,74 @@ mod tests {
     #[test]
     fn a_server_that_does_not_say_its_version_is_refused() {
         assert!(supported(None, URL).is_err());
+    }
+
+    /// @return A database given the options, in order
+    fn database(said: &[(&str, &str)]) -> KineticaDatabase {
+        let mut database = KineticaDatabase::default();
+
+        for (name, value) in said {
+            database
+                .set_option(
+                    OptionDatabase::from(*name),
+                    OptionValue::String(value.to_string()),
+                )
+                .expect(name);
+        }
+
+        database
+    }
+
+    #[test]
+    fn a_kinetica_uri_fills_in_what_was_not_set_directly() {
+        let resolved = database(&[
+            (crate::options::MAX_ROWS, "5"),
+            (
+                "uri",
+                "kinetica://me:pw@h:9191?tls=false&kinetica.query.max_rows=10\
+                 &kinetica.session_id=s",
+            ),
+            ("password", "set directly"),
+        ])
+        .resolved()
+        .expect("resolved");
+
+        assert_eq!(resolved.uri, "http://h:9191");
+        assert_eq!(resolved.username, "me");
+        assert_eq!(
+            resolved.password, "set directly",
+            "said directly, after the URI"
+        );
+        assert_eq!(
+            resolved.context.max_rows,
+            Some(5),
+            "said directly, before the URI"
+        );
+        assert_eq!(resolved.session_id, "s");
+    }
+
+    #[test]
+    fn a_malformed_kinetica_uri_is_refused_when_it_is_set() {
+        let mut database = KineticaDatabase::default();
+
+        assert!(database
+            .set_option(
+                OptionDatabase::Uri,
+                OptionValue::String("kinetica://h?tls=sometimes".to_string()),
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn a_uri_option_the_driver_does_not_know_is_refused_when_connecting() {
+        let refused = database(&[("uri", "kinetica://h?kinetica.no_such_thing=1")])
+            .resolved()
+            .expect_err("an unknown option");
+
+        assert!(
+            refused.message.contains("no_such_thing"),
+            "{}",
+            refused.message
+        );
     }
 }

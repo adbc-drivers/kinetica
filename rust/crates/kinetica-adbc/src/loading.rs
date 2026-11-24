@@ -239,7 +239,7 @@ mod tests {
     fn a_name_that_is_not_one_of_these_is_left_to_the_caller() {
         let mut loading = Loading::default();
 
-        assert!(!loading.set("adbc.kinetica.batch_size", "10").unwrap());
-        assert!(loading.get("adbc.kinetica.batch_size").is_none());
+        assert!(!loading.set("kinetica.query.batch_size", "10").unwrap());
+        assert!(loading.get("kinetica.query.batch_size").is_none());
     }
 }

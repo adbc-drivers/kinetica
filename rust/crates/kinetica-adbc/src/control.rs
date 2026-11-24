@@ -25,7 +25,7 @@
 //! Impersonation is the `KINETICA_IMPERSONATE` header, which the server reads
 //! as "do this as that user". It is held as a stack, so `EXECUTE AS USER`
 //! nests and `REVERT` goes back one step; the bottom of the stack is whatever
-//! `adbc.kinetica.impersonate_user` named, or nobody.
+//! `kinetica.impersonate_user` named, or nobody.
 
 use std::sync::Mutex;
 
@@ -35,7 +35,7 @@ use std::sync::LazyLock;
 
 use gpudb_api::Kinetica;
 
-use crate::error::{invalid, to_adbc};
+use crate::error::{could_not, invalid};
 
 /// The header the server reads as the user to act as.
 const IMPERSONATE_HEADER: &str = "KINETICA_IMPERSONATE";
@@ -169,7 +169,7 @@ pub struct Impersonation {
 #[derive(Debug, Default)]
 struct Stack {
     /// Who the connection falls back to with nothing on the stack: what
-    /// `adbc.kinetica.impersonate_user` named, or nobody.
+    /// `kinetica.impersonate_user` named, or nobody.
     base: String,
     /// Each user stepped into, the last being the one in force.
     stepped: Vec<String>,
@@ -235,11 +235,11 @@ impl Impersonation {
         if user.is_empty() {
             client
                 .remove_http_header(IMPERSONATE_HEADER)
-                .map_err(to_adbc)
+                .map_err(could_not("stop acting as another user"))
         } else {
             client
                 .add_http_header(IMPERSONATE_HEADER, user)
-                .map_err(to_adbc)
+                .map_err(could_not("act as another user"))
         }
     }
 

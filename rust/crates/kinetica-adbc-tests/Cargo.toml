@@ -23,7 +23,7 @@ license = "Apache-2.0"
 kinetica-adbc = { path = "../kinetica-adbc" }
 # The helper reaches /show/table directly: sys_sql_temp is not visible
 # through the driver, so cleanup cannot be asserted without this.
-gpudb-api = "~7.2.3"
+gpudb-api = "~7.2.4"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [dev-dependencies]

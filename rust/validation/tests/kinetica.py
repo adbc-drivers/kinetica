@@ -41,6 +41,8 @@ class KineticaQuirks(model.DriverQuirks):
         get_objects_constraints_primary=True,
         get_objects_constraints_unique=False,
         get_objects_tabletypes_filter=True,
+        # Each column's type as Kinetica's SQL writes it, under KINETICA:type
+        metadata_type_name=True,
         statement_bind=True,
         statement_bulk_ingest=True,
         statement_bulk_ingest_schema=True,

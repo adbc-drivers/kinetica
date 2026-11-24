@@ -50,10 +50,10 @@ const MAX_OUTPUT: u64 = 1 << 20;
 /// failure does not become the whole error message.
 const QUOTED_LINES: usize = 3;
 
-/// `adbc.kinetica.oauth.command` -- the command line to run.
+/// `kinetica.oauth.command` -- the command line to run.
 const PARAM_COMMAND: &str = "command";
 
-/// `adbc.kinetica.oauth.command_timeout_seconds` -- how long to wait for it.
+/// `kinetica.oauth.command_timeout_seconds` -- how long to wait for it.
 const PARAM_TIMEOUT: &str = "command_timeout_seconds";
 
 /// Parameters that mean the same thing under two names, the second being the
@@ -142,7 +142,7 @@ pub struct Vendor {
 /// The vendors recognized today.
 ///
 /// Each is inferable from parameters nothing else reads, so naming one in
-/// `adbc.kinetica.auth_provider` is an override rather than a requirement: a
+/// `kinetica.auth_provider` is an override rather than a requirement: a
 /// vendor runs no flow of its own, so leaving its name out costs a reader
 /// nothing.
 pub static ALL: &[Vendor] = &[
